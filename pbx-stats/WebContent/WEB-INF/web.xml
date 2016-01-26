@@ -22,9 +22,9 @@
     <servlet-name>MainServletController</servlet-name>
     <url-pattern>/main</url-pattern>
   </servlet-mapping>
-    <servlet-mapping>
+  <servlet-mapping>
     <servlet-name>MainServletController</servlet-name>
-    <url-pattern>/</url-pattern>
+    <url-pattern></url-pattern>
   </servlet-mapping>
   <resource-ref>
     <description>DB Connection</description>
