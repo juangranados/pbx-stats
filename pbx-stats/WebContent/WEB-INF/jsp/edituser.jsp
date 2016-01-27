@@ -25,11 +25,11 @@
 		<fieldset class="form-group">
 			<label for="Nombre">Editar nombre</label> <input
 				type="text" class="form-control" name="editedName" required
-				placeholder="Nombre" value="${editName}">
+				placeholder="Introduce nombre" value="${editName}">
 		</fieldset>
 		<fieldset class="form-group">
 			<label for="Password">Nueva contraseña</label> <input type="password"
-				class="form-control" name="editedPassword" placeholder="Contraseña">
+				class="form-control" name="editedPassword" placeholder="Introduce contraseña">
 		</fieldset>
 		<div class="checkbox">
 			<label> <input name="editedAdminckbox" type="checkbox"

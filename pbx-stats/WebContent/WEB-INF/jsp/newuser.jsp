@@ -16,20 +16,20 @@
 </head>
 <body>
 	<form method="post" action="?action=confirmNewUser" class="form-user">
-		<h2 class="form-user-heading">Editar usuario</h2>
+		<h2 class="form-user-heading">Nuevo usuario</h2>
 		<fieldset class="form-group">
-			<label for="CorreoElectrónico">Editar correo electrónico</label> <input
+			<label for="CorreoElectrónico">Correo electrónico</label> <input
 				type="email" class="form-control" name="newEmail"
 				placeholder="Introduce email">
 		</fieldset>
 		<fieldset class="form-group">
 			<label for="Nombre">Nombre</label> <input
 				type="text" class="form-control" name="newName"
-				placeholder="Nombre">
+				placeholder="Introduce nombre">
 		</fieldset>
 		<fieldset class="form-group">
-			<label for="Password">Nueva contraseña</label> <input type="password"
-				class="form-control" name="newPassword" placeholder="Contraseña">
+			<label for="Password">Contraseña</label> <input type="password"
+				class="form-control" name="newPassword" placeholder="Introduce contraseña">
 		</fieldset>
 		<div class="checkbox">
 			<label> <input name="newAdminckbox" type="checkbox">Usuario administrador

@@ -228,7 +228,7 @@ public class ReportsServletController extends HttpServlet {
 					    return;
 					}
 					request.setAttribute("results", results);
-					request.setAttribute("reportName", "Faturación general" + period);
+					request.setAttribute("reportName", "Facturación general" + period);
 					request.setAttribute("reportType", "extPricing");
 					setControllerResponse("resultextgeneral").forward(request, response);
 				}
@@ -247,7 +247,7 @@ public class ReportsServletController extends HttpServlet {
 					    return;
 					}
 					request.setAttribute("results", results);
-					request.setAttribute("reportName", "Faturación general" + period);
+					request.setAttribute("reportName", "Facturación general" + period);
 					request.setAttribute("reportType", "extPricing");
 					setControllerResponse("resultextgeneral").forward(request, response);
 				}
