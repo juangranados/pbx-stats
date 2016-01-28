@@ -99,7 +99,7 @@ public class MainServletController extends HttpServlet {
 					request.getSession().invalidate();
 					//Se redirige a la vista login.jsp.
 					setControllerResponse("login").forward(request, response);
-					log.info("Se ha cerrado la sesión del usuario");
+					log.info("Se ha cerrado la sesion del usuario");
 					
 				}
 			//Si no se especifica el parámetro action se redirige a la vista a index.jsp. Menú principal de la aplicación.

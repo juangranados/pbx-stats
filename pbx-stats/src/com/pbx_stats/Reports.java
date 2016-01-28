@@ -179,7 +179,7 @@ public class Reports {
 		int c = 0;
 		//Si se pide una tarificación de la consulta
 		if (billing) {
-			log.info("Se procesará una consulta de facturación.");
+			log.info("Se procesará una consulta de facturacion.");
 			//Se dimensiona la matriz que almacena el resultado para incluir la tarificación
 			result = new String[rowsNumber + 2][columnsNumber + 3];
 			for (c = 0; c < columnsNumber; c++) {
@@ -250,7 +250,7 @@ public class Reports {
 		}
 		rs.close();
 		log.info("Se han procesado " + rowsNumber + " filas en la consulta.");
-		log.info("Ha finalizado la ejecución de la consulta. Se devuelve el resultado al Servlet.");
+		log.info("Ha finalizado la ejecucion de la consulta. Se devuelve el resultado al Servlet.");
 		return result;
 	}
 	/**
@@ -420,7 +420,7 @@ public class Reports {
 		    while(rs.next()){
 		    	srcList.add(rs.getString(1));
 		    }
-		    log.info("Ha finalizado la ejecución de la consulta para obtener la lista de extensiones con datos. Se devuelve el resultado al Servlet");
+		    log.info("Ha finalizado la ejecucion de la consulta para obtener la lista de extensiones con datos. Se devuelve el resultado al Servlet");
 		    return srcList;
 	}
 }
