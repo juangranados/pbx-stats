@@ -74,4 +74,7 @@
     <servlet-name>ReportsServletController</servlet-name>
     <url-pattern>/reports</url-pattern>
   </servlet-mapping>
+  <listener>
+    <listener-class>com.pbx_stats.InitConfig</listener-class>
+  </listener>
 </web-app>

@@ -1,26 +1,18 @@
 package com.pbx_stats;
 
 import java.io.IOException;
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.util.List;
-
-import javax.naming.Context;
-import javax.naming.InitialContext;
-import javax.naming.NamingException;
 import javax.servlet.RequestDispatcher;
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import javax.sql.DataSource;
-
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
-
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import com.pbx_stats.beans.Pbx;
 import com.pbx_stats.beans.User;
+import com.pbx_stats.tools.DatabaseConnectionManager;
 import com.pbx_stats.tools.Utils;
 
 /**
@@ -28,144 +20,131 @@ import com.pbx_stats.tools.Utils;
  */
 public class UsersServletController extends HttpServlet {
 	private static final long serialVersionUID = 1L;
-	private static final Logger log = LogManager.getLogger("Servlet: ");
+	private static final Logger log = LogManager.getLogger("UsersServletController: ");
 	private String rutaJSP;
-	private DataSource ds;
-	private Connection con;
+	DatabaseConnectionManager localDatabase;
 	Users userList;
 	Pbxs pbxsList;
-	
-    @Override
+
+	@Override
 	public void init(ServletConfig config) throws ServletException {
 		super.init(config);
 		rutaJSP = config.getInitParameter("rutaJSP");
-		try {
-			InitialContext initContext = new InitialContext();
-			Context env = (Context) initContext.lookup("java:comp/env");
-			ds = (DataSource) env.lookup("jdbc/pbx-stats");
-		} catch (NamingException e) {
-			log.error("Error al configurar JNDI: " + e.getMessage());
-		}
-		try {
-			con = ds.getConnection();
-		} catch (SQLException e) {
-			log.error("Error creando la conexión: " + e.getMessage());
-		}
-		userList = new Users(con);
-		try {
-			pbxsList = new Pbxs(con);
-		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+		localDatabase = InitConfig.getLocalDatabase(getServletContext());
 	}
-    /**
-     * @see HttpServlet#HttpServlet()
-     */
-    public UsersServletController() {
-        super();
-        // TODO Auto-generated constructor stub
-    }
 
 	/**
-	 * @see HttpServlet#doGet(HttpServletRequest request, HttpServletResponse response)
+	 * @see HttpServlet#HttpServlet()
+	 */
+	public UsersServletController() {
+		super();
+	}
+
+	/**
+	 * @see HttpServlet#doGet(HttpServletRequest request, HttpServletResponse
+	 *      response)
 	 */
 	protected void doGet(HttpServletRequest request, HttpServletResponse response)
 			throws ServletException, IOException {
 		if (Utils.isLoggedIn(request) && Utils.isAdmin(request)) {
+			try {
+				userList = new Users(localDatabase);
+				pbxsList = new Pbxs(localDatabase);
+			} catch (Exception e) {
+				log.error(
+						"Se ha producido un error al inicializar los objetos que contienen la lista de usuarios y centralitas: "
+								+ e.getMessage());
+			}
 			String action = request.getParameter("action");
 			if (action != null) {
-				if (action.equals("users")) {	
+				if (action.equals("users")) {
 					request.setAttribute("userList", userList.userList);
 					setControllerResponse("users").forward(request, response);
-				} 
-				else if (action.equals("editUser")) {
-					User user = userList.getUserById(con, Integer.parseInt(request.getParameter("iduser")));
-					request.setAttribute("editIdEmail",user.getEmail());
+				} else if (action.equals("editUser")) {
+					User user = userList.getUserById(Integer.parseInt(request.getParameter("iduser")));
+					request.setAttribute("editIdEmail", user.getEmail());
 					request.setAttribute("editName", user.getName());
 					request.setAttribute("editAdminUser", user.isAdmin());
-					request.setAttribute("iduser",user.getIduser());
-					List<Pbx> pbxsByUserList = pbxsList.getPbxsByUser(con,Integer.parseInt(request.getParameter("iduser")),Boolean.FALSE);
-					request.setAttribute("pbxsByUserList", pbxsByUserList);
-					List<Pbx> reversePbxsByUserList = pbxsList.getPbxsByUser(con,Integer.parseInt(request.getParameter("iduser")),Boolean.TRUE);
-					request.setAttribute("reversePbxsByUserList", reversePbxsByUserList);
-					setControllerResponse("edituser").forward(request, response);
-				}
-				else if (action.equals("confirmEditUser")){
+					request.setAttribute("iduser", user.getIduser());
+					try {
+						List<Pbx> pbxsByUserList = pbxsList.getPbxsByUser(localDatabase,
+								Integer.parseInt(request.getParameter("iduser")), Boolean.FALSE);
+						request.setAttribute("pbxsByUserList", pbxsByUserList);
+						List<Pbx> reversePbxsByUserList = pbxsList.getPbxsByUser(localDatabase,
+								Integer.parseInt(request.getParameter("iduser")), Boolean.TRUE);
+						request.setAttribute("reversePbxsByUserList", reversePbxsByUserList);
+						setControllerResponse("edituser").forward(request, response);
+					} catch (Exception e) {
+						request.setAttribute("error", "Error de acceso a la base de datos local: " + e.getMessage());
+						setControllerResponse("error").forward(request, response);
+						return;
+					}
+				} else if (action.equals("confirmEditUser")) {
 					int iduser = Integer.parseInt(request.getParameter("iduser"));
 					String name = request.getParameter("editedName");
 					String email = request.getParameter("editedEmail");
 					String password = request.getParameter("editedPassword");
 					Boolean isAdmin = Boolean.FALSE;
-					if (password.isEmpty()){
-						password="none";
+					if (password.isEmpty()) {
+						password = "none";
 					}
-					if (request.getParameter("editedAdminckbox")!=null){
+					if (request.getParameter("editedAdminckbox") != null) {
 						isAdmin = Boolean.TRUE;
 					}
-					if (userList.editUser(con,iduser,name,email,password,isAdmin)){
+					try {
+						userList.editUser(localDatabase, iduser, name, email, password, isAdmin);
 						String[] pbxs = request.getParameterValues("pbxs[]");
-						if (userList.editUserPbxs(con,iduser,pbxs)){
-							request.setAttribute("usersMessage","Usuario con ID: " + Integer.parseInt(request.getParameter("iduser")) + " modificado");
-						}
-						else{
-							request.setAttribute("usersMessage","Error al modificar usuario");
-						}
-					}
-					else{
-						request.setAttribute("usersMessage","Error al modificar usuario");
+						userList.editUserPbxs(localDatabase, iduser, pbxs);
+						request.setAttribute("usersMessage",
+								"Usuario con ID: " + Integer.parseInt(request.getParameter("iduser")) + " modificado");
+					} catch (Exception e) {
+						request.setAttribute("usersMessage", "Error al modificar usuario: " + e.getMessage());
 					}
 					request.setAttribute("userList", userList.userList);
 					setControllerResponse("users").forward(request, response);
-				}
-				else if (action.equals("cancelEditUser")){
-					request.setAttribute("usersMessage","Se ha cancelado la edición del usuario");
+
+				} else if (action.equals("cancelEditUser")) {
+					request.setAttribute("usersMessage", "Se ha cancelado la edición del usuario");
 					request.setAttribute("userList", userList.userList);
 					setControllerResponse("users").forward(request, response);
-				}
-				else if (action.equals("newuser")){
+				} else if (action.equals("newuser")) {
 					request.setAttribute("pbxsList", pbxsList.pbxsList);
 					setControllerResponse("newuser").forward(request, response);
-				}
-				else if (action.equals("confirmNewUser")){
+				} else if (action.equals("confirmNewUser")) {
 					String name = request.getParameter("newName");
 					String email = request.getParameter("newEmail");
 					String password = request.getParameter("newPassword");
 					int iduser;
-					String isAdmin=request.getParameter("newAdminckbox");
-					if (isAdmin!=null){
-						iduser=userList.newUser(con,name,email,password,Boolean.TRUE);
-					}
-					else{
-						iduser=userList.newUser(con,name,email,password,Boolean.FALSE);
-					}
-					if (iduser!=-1){
-						String[] pbxs = request.getParameterValues("pbxs[]");
-						if (userList.editUserPbxs(con,iduser,pbxs)){
-							request.setAttribute("usersMessage","Usuario con ID: " + iduser + " creado");
+					String isAdmin = request.getParameter("newAdminckbox");
+					try {
+						if (isAdmin != null) {
+							iduser = userList.newUser(localDatabase, name, email, password, Boolean.TRUE);
+						} else {
+							iduser = userList.newUser(localDatabase, name, email, password, Boolean.FALSE);
 						}
-						else{
-							request.getSession().setAttribute("usersMessage","Error al crear usuario");
+						if (iduser != -1) {
+							String[] pbxs = request.getParameterValues("pbxs[]");
+							userList.editUserPbxs(localDatabase, iduser, pbxs);
+							request.setAttribute("usersMessage", "Usuario con ID: " + iduser + " creado");
+						} else {
+							request.getSession().setAttribute("usersMessage", "Error al crear usuario");
 						}
-					}
-					else{
-						request.getSession().setAttribute("usersMessage","Error al crear usuario");
+					} catch (Exception e) {
+						request.getSession().setAttribute("usersMessage", "Error al crear usuario: " + e.getMessage());
 					}
 					request.setAttribute("userList", userList.userList);
 					setControllerResponse("users").forward(request, response);
-				}
-				else if (action.equals("cancelNewUser")){
-					request.setAttribute("usersMessage","Se ha cancelado la creación de un nuevo usuario");
+				} else if (action.equals("cancelNewUser")) {
+					request.setAttribute("usersMessage", "Se ha cancelado la creación de un nuevo usuario");
 					request.setAttribute("userList", userList.userList);
 					setControllerResponse("users").forward(request, response);
-				}
-				else if (action.equals("deleteUser")){
-					
-					if (userList.deleteUser(con,Integer.parseInt(request.getParameter("iduser")))){
-						request.setAttribute("usersMessage","Usuario con ID " + Integer.parseInt(request.getParameter("iduser")) + " borrado correctamente");
-					}
-					else{
-						request.setAttribute("usersMessage","Error al eliminar usuario");
+				} else if (action.equals("deleteUser")) {
+					try {
+						userList.deleteUser(localDatabase, Integer.parseInt(request.getParameter("iduser")));
+						request.setAttribute("usersMessage", "Usuario con ID "
+								+ Integer.parseInt(request.getParameter("iduser")) + " borrado correctamente");
+					} catch (Exception e) {
+						request.setAttribute("usersMessage", "Error al eliminar usuario: " + e.getMessage());
 					}
 					request.setAttribute("userList", userList.userList);
 					setControllerResponse("users").forward(request, response);
@@ -173,18 +152,20 @@ public class UsersServletController extends HttpServlet {
 			} else {
 				setControllerResponse("main").forward(request, response);
 			}
-		}
-		else{
+		} else {
 			getServletContext().getRequestDispatcher("/main").forward(request, response);
 		}
 	}
 
 	/**
-	 * @see HttpServlet#doPost(HttpServletRequest request, HttpServletResponse response)
+	 * @see HttpServlet#doPost(HttpServletRequest request, HttpServletResponse
+	 *      response)
 	 */
-	protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+	protected void doPost(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
 		doGet(request, response);
 	}
+
 	public RequestDispatcher setControllerResponse(String vista) {
 		String url = rutaJSP + vista + ".jsp";
 		return getServletContext().getRequestDispatcher(url);

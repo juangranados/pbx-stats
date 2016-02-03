@@ -3,10 +3,12 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+
+import javax.naming.NamingException;
 import javax.servlet.http.HttpServletRequest;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 /**
  * Clase Utils
  * Contiene diversos métodos estáticos que se usan en la aplicación
@@ -21,31 +23,36 @@ public class Utils {
 	}
 	/**
 	 * Comprueba si la combinación de usuario y contraseña es correcta
-	 * @param con conexión con la base de datos mysql
+	 * @param localDatabase conexión con la base de datos mysql
 	 * @param email email del usuario
 	 * @param password contraseña del usuario
 	 * @return id del usuario, -1 si no se encuentra la combinación de usuario y contraseña
-	 * @throws SQLException
+	 * @throws Exception 
 	 */
-	public static int checkLogging (Connection con,String email, String password) throws SQLException{
+	public static int checkLogging (DatabaseConnectionManager localDatabase,String email, String password) throws Exception{
 		String sql ="select iduser,password from users where email = ?";	
+		Connection con = null;
+		PreparedStatement st = null;
+		ResultSet rs = null;
 		try {
-			PreparedStatement st = con.prepareStatement(sql);
+			con=localDatabase.getConnection();
+			st = con.prepareStatement(sql);
 			st.setString(1, email);
-			ResultSet rs = st.executeQuery();
+			rs = st.executeQuery();
 			if(rs.next()){
 				int id = rs.getInt(1);
 				String hash=rs.getString(2);
 				if (BCrypt.checkpw(password, hash)){
-					rs.close();
+					DatabaseConnectionManager.closeQuietly(con, rs, st);
 					return id;
 				}
 			}
-			rs.close();
+			DatabaseConnectionManager.closeQuietly(con, rs, st);
 			return -1;
 
-		} catch (SQLException e) {
+		} catch (SQLException | NamingException e) {
 			log.error("Error al comprobar usuario y contraseña en la BBDD: " + e.getMessage());
+			DatabaseConnectionManager.closeQuietly(con, rs, st);
 			throw e;
 		}
 	}
@@ -54,24 +61,29 @@ public class Utils {
 	 * @param con conexión con la base de datos mysql
 	 * @param iduser id del usuario
 	 * @return true si es administrador. False si no es administrador.
-	 * @throws SQLException
+	 * @throws Exception 
 	 */
-	public static boolean checkIsAdmin(Connection con, int iduser) throws SQLException{
+	public static boolean checkIsAdmin(DatabaseConnectionManager localDatabase, int iduser) throws Exception{
 		String sql = "select admin from users where iduser = ?";
+		Connection con = null;
+		PreparedStatement st = null;
+		ResultSet rs = null;
 		try {
-			PreparedStatement st = con.prepareStatement(sql);
+			con = localDatabase.getConnection();
+			st = con.prepareStatement(sql);
 			st.setInt(1, iduser);
-			ResultSet rs = st.executeQuery();
+			rs = st.executeQuery();
 			if (rs.next()) {
 				if (rs.getInt(1) == 0) {
-					rs.close();
+					DatabaseConnectionManager.closeQuietly(con, rs, st);
 					return false;
 				}
-				rs.close();
+				DatabaseConnectionManager.closeQuietly(con, rs, st);
 				return true;
 			}
-		} catch (SQLException e) {
+		} catch (SQLException | NamingException e) {
 			log.error("Error al comprobar la pertenecia al grupo administradores en la BBDD: " + e.getMessage());
+			DatabaseConnectionManager.closeQuietly(con, rs, st);
 			throw e;
 		}
 		return false;

@@ -2,8 +2,8 @@ package com.pbx_stats.beans;
 
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.pbx_stats.tools.AdvancedEncryptionStandard;
 
@@ -24,15 +24,16 @@ public class Pbx {
 	private String disposition;
 	private String calltype;
 	private String encryptionKey;
-	private static final Logger log = LogManager.getLogger("PBX: ");
+	private static final Logger log = LogManager.getLogger("Pbx: ");
 	
 	public Pbx(int idpbx, String name,String ip,int port,String username, String password, String database, String cdrname, String datetime, String src, String dst,
-			String duration, String billsec, String disposition,String calltype) {
+			String duration, String billsec, String disposition,String calltype) throws NamingException {
 		super();
 		try {
 			this.encryptionKey=InitialContext.doLookup("java:comp/env/encryptionString");  
 		} catch (NamingException e) {
 			log.error("Error al configurar JNDI para recuperar la clave de encriptación: " + e.getMessage());
+			throw e;
 		}
 		this.idpbx = idpbx;
 		this.name = name;
@@ -69,21 +70,22 @@ public class Pbx {
 	public void setPort(int port) {
 		this.port = port;
 	}
-	public String getPassword() {
+	public String getPassword() throws Exception {
 		try {
 			return AdvancedEncryptionStandard.decrypt(password,encryptionKey);
 		} catch (Exception e) {
 			log.error("Error al encriptar la contraseña: " + e.getMessage());
-			return null;
+			throw e;
 		}
 	}
-	public void setPassword(String password) {
+	public void setPassword(String password) throws Exception {
 		
 		try {
 			this.password = AdvancedEncryptionStandard.encrypt(password,encryptionKey);
 		} catch (Exception e) {
 			log.error("Error al desencriptar la contraseña: " + e.getMessage());
 			this.password=null;
+			throw e;
 		}
 	}
 	public String getCdrname() {

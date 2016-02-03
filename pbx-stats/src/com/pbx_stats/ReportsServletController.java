@@ -1,12 +1,7 @@
 package com.pbx_stats;
-
 import java.io.IOException;
-import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
-
-import javax.naming.Context;
-import javax.naming.InitialContext;
 import javax.naming.NamingException;
 import javax.servlet.RequestDispatcher;
 import javax.servlet.ServletConfig;
@@ -15,13 +10,11 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
-import javax.sql.DataSource;
-
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
-
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import com.pbx_stats.beans.Pbx;
 import com.pbx_stats.beans.Pricing;
+import com.pbx_stats.tools.DatabaseConnectionManager;
 import com.pbx_stats.tools.Utils;
 
 /**
@@ -30,12 +23,10 @@ import com.pbx_stats.tools.Utils;
  */
 public class ReportsServletController extends HttpServlet {
 	private static final long serialVersionUID = 1L;
-	private static final Logger log = LogManager.getLogger("reportsServletController: ");
+	private static final Logger log = LogManager.getLogger("ReportsServletController: ");
 	private String rutaJSP;
-	private DataSource ds;
-	private Connection con;  
+	DatabaseConnectionManager localDatabase;
 	Pbxs pbxsList;
-	boolean initError=false;
     /**
      * @see HttpServlet#HttpServlet()
      */
@@ -52,27 +43,7 @@ public class ReportsServletController extends HttpServlet {
 		super.init(config);
 		//Recuperar el valor del directorio que contiene los archivos JSP
 		rutaJSP = config.getInitParameter("rutaJSP");
-		//Recuperación de los datos de conexión a mysql en la variable datasource ds
-		try {
-			InitialContext initContext = new InitialContext();
-			Context env = (Context) initContext.lookup("java:comp/env");
-			ds = (DataSource) env.lookup("jdbc/pbx-stats");
-		} catch (NamingException e) {
-			log.error("Error al configurar JNDI: " + e.getMessage());
-		}
-		try {
-			con = ds.getConnection();
-		} catch (Exception e) {
-			log.error("Error creando la conexión: " + e.getMessage());
-		}
-		//Genera una clase con todas las centralitas de la base de datos. Si se produce un error se indica en la variable 
-		//initError
-		try {
-			pbxsList = new Pbxs(con);
-		} catch (Exception e) {
-			log.error("Error de acceso a la base de datos local: " + e.getMessage());
-			initError=true;
-		}
+		localDatabase = InitConfig.getLocalDatabase(getServletContext());
 	}
 
 	/**
@@ -83,8 +54,11 @@ public class ReportsServletController extends HttpServlet {
 	 */
 	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
 		//Si el servlet no se ha iniciado correctamente, se redirige a la vista error.jsp
-		if (initError){
-			request.setAttribute("error", "Error al iniciar el Servlet. Error de acceso a la base de datos local");
+		try {
+			pbxsList = new Pbxs(localDatabase);
+		} catch (Exception e1) {
+			log.error("Error de acceso a la base de datos local: " + e1.getMessage());
+			request.setAttribute("error", "Error de acceso a la base de datos local: " + e1.getMessage());
 			setControllerResponse("error").forward(request, response);
 			return;
 		}
@@ -98,7 +72,14 @@ public class ReportsServletController extends HttpServlet {
 				//Se recupera el id del usuario
 				int iduser = Integer.parseInt(session.getAttribute("iduser").toString());
 				//Se genera una lista con las centralitas a las que tiene acceso el usuario
-				List<Pbx> PbxsByUserList = pbxsList.getPbxsByUser(con,iduser,Boolean.FALSE);
+				List<Pbx> PbxsByUserList;
+				try {
+					PbxsByUserList = pbxsList.getPbxsByUser(localDatabase,iduser,Boolean.FALSE);
+				} catch (NamingException | SQLException e2) {
+					request.setAttribute("error", "Error de acceso a la base de datos local. No se ha podido recuperar la lista de las centralitas a las que el usuario tiene acceso: " + e2.getMessage());
+					setControllerResponse("error").forward(request, response);
+				    return;
+				}
 				if (PbxsByUserList==null){
 					request.setAttribute("error", "Error de acceso a la base de datos local. No se ha podido recuperar la lista de las centralitas a las que el usuario tiene acceso: ");
 					setControllerResponse("error").forward(request, response);
@@ -145,9 +126,7 @@ public class ReportsServletController extends HttpServlet {
 						List<String> srcList;
 						try {
 							srcList = Reports.getExtList(pbxsList.getPbxById(idPbx),fechaInicio,fechaFin,horaInicio,horaFin);
-						} catch (SQLException e) {
-							System.out.println("SQLState: " + e.getSQLState());
-						    System.out.println("Código de error: " + e.getErrorCode());
+						} catch (Exception e) {
 						    log.error("Error en la BBDD interna: " + e.getMessage());
 						    request.setAttribute("error", "Error de acceso a la base de datos local: " + e.getMessage());
 							setControllerResponse("error").forward(request, response);
@@ -215,13 +194,11 @@ public class ReportsServletController extends HttpServlet {
 				
 				//Una vez que se ha seleccionado el periodo, se genera el resultado y se imprime en la vista correspondiente
 				else if (action.equals("extGeneralPricingResult")){
-					Pricing pricing=new Pricing(con,idPbx);
 					String results[][];
 					try {
+						Pricing pricing=new Pricing(localDatabase,idPbx);
 						results = Reports.reportGeneralPricing(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),pricing,null,Boolean.FALSE,null);
-					} catch (SQLException e) {
-					    System.out.println("SQLState: " + e.getSQLState());
-					    System.out.println("Código de error: " + e.getErrorCode());
+					} catch (Exception e) {
 					    log.error("Error en la BBDD de la centralita: " + e.getMessage());
 					    request.setAttribute("error", "Error de acceso a la base de datos de la centralita: " + e.getMessage());
 						setControllerResponse("error").forward(request, response);
@@ -234,13 +211,11 @@ public class ReportsServletController extends HttpServlet {
 				}
 				else if (action.equals("extGeneralPricingResultFiltered")){
 					String[] srcList = request.getParameterValues("sourceList");
-					Pricing pricing=new Pricing(con,idPbx);
 					String results[][];
 					try {
+						Pricing pricing=new Pricing(localDatabase,idPbx);
 						results = Reports.reportGeneralPricing(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),pricing,null,Boolean.FALSE,srcList);
-					} catch (SQLException e) {
-						System.out.println("SQLState: " + e.getSQLState());
-					    System.out.println("Código de error: " + e.getErrorCode());
+					} catch (Exception e) {
 					    log.error("Error en la BBDD de la centralita: " + e.getMessage());
 					    request.setAttribute("error", "Error de acceso a la base de datos de la centralita: " + e.getMessage());
 						setControllerResponse("error").forward(request, response);
@@ -252,13 +227,11 @@ public class ReportsServletController extends HttpServlet {
 					setControllerResponse("resultextgeneral").forward(request, response);
 				}
 				else if (action.equals("extPricingDetail")){
-					Pricing pricing=new Pricing(con,idPbx);
 					String results[][];
 					try {
+						Pricing pricing=new Pricing(localDatabase,idPbx);
 						results = Reports.reportGeneralPricing(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),pricing,ext,Boolean.FALSE,null);
-					} catch (SQLException e) {
-						System.out.println("SQLState: " + e.getSQLState());
-					    System.out.println("Código de error: " + e.getErrorCode());
+					} catch (Exception e) {
 					    log.error("Error en la BBDD de la centralita: " + e.getMessage());
 					    request.setAttribute("error", "Error de acceso a la base de datos de la centralita: " + e.getMessage());
 						setControllerResponse("error").forward(request, response);
@@ -269,13 +242,12 @@ public class ReportsServletController extends HttpServlet {
 					setControllerResponse("resultext").forward(request, response);
 					}
 				else if (action.equals("extPricingBrief")){
-					Pricing pricing=new Pricing(con,idPbx);
+					
 					String results[][];
 					try {
+						Pricing pricing=new Pricing(localDatabase,idPbx);
 						results = Reports.reportGeneralPricing(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),pricing,ext,Boolean.TRUE,null);
-					} catch (SQLException e) {
-						System.out.println("SQLState: " + e.getSQLState());
-					    System.out.println("Código de error: " + e.getErrorCode());
+					} catch (Exception e) {
 					    log.error("Error en la BBDD de la centralita: " + e.getMessage());
 					    request.setAttribute("error", "Error de acceso a la base de datos de la centralita: " + e.getMessage());
 						setControllerResponse("error").forward(request, response);
@@ -289,9 +261,7 @@ public class ReportsServletController extends HttpServlet {
 					String results[][];
 					try {
 						results = Reports.reportExtGeneral(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Outbound",null,Boolean.FALSE,null);
-					} catch (SQLException e) {
-						System.out.println("SQLState: " + e.getSQLState());
-					    System.out.println("Código de error: " + e.getErrorCode());
+					} catch (Exception e) {
 					    log.error("Error en la BBDD de la centralita: " + e.getMessage());
 					    request.setAttribute("error", "Error de acceso a la base de datos de la centralita: " + e.getMessage());
 						setControllerResponse("error").forward(request, response);
@@ -307,9 +277,7 @@ public class ReportsServletController extends HttpServlet {
 					String results[][];
 					try {
 						results = Reports.reportExtGeneral(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Outbound",null,Boolean.FALSE,srcList);
-					} catch (SQLException e) {
-						System.out.println("SQLState: " + e.getSQLState());
-					    System.out.println("Código de error: " + e.getErrorCode());
+					} catch (Exception e) {
 					    log.error("Error en la BBDD de la centralita: " + e.getMessage());
 					    request.setAttribute("error", "Error de acceso a la base de datos de la centralita: " + e.getMessage());
 						setControllerResponse("error").forward(request, response);
@@ -324,9 +292,7 @@ public class ReportsServletController extends HttpServlet {
 					String results[][];
 					try {
 						results = Reports.reportExtGeneral(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Outbound",ext,Boolean.FALSE,null);
-					} catch (SQLException e) {
-						System.out.println("SQLState: " + e.getSQLState());
-					    System.out.println("Código de error: " + e.getErrorCode());
+					} catch (Exception e) {
 					    log.error("Error en la BBDD de la centralita: " + e.getMessage());
 					    request.setAttribute("error", "Error de acceso a la base de datos de la centralita: " + e.getMessage());
 						setControllerResponse("error").forward(request, response);
@@ -340,9 +306,7 @@ public class ReportsServletController extends HttpServlet {
 					String results[][];
 					try {
 						results = Reports.reportExtGeneral(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Outbound",ext,Boolean.TRUE,null);
-					} catch (SQLException e) {
-						System.out.println("SQLState: " + e.getSQLState());
-					    System.out.println("Código de error: " + e.getErrorCode());
+					} catch (Exception e) {
 					    log.error("Error en la BBDD de la centralita: " + e.getMessage());
 					    request.setAttribute("error", "Error de acceso a la base de datos de la centralita: " + e.getMessage());
 						setControllerResponse("error").forward(request, response);
@@ -356,10 +320,8 @@ public class ReportsServletController extends HttpServlet {
 					String results[][];
 					try {
 						results = Reports.reportExtGeneral(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Inbound",null,Boolean.FALSE,null);
-					} catch (SQLException e) {
-						System.out.println("SQLState: " + e.getSQLState());
-					    System.out.println("Código de error: " + e.getErrorCode());
-					    log.error("Error en la BBDD de la centralita: " + e.getMessage());
+					} catch (Exception e) {
+						log.error("Error en la BBDD de la centralita: " + e.getMessage());
 					    request.setAttribute("error", "Error de acceso a la base de datos de la centralita: " + e.getMessage());
 						setControllerResponse("error").forward(request, response);
 					    return;
@@ -373,9 +335,7 @@ public class ReportsServletController extends HttpServlet {
 					String results[][];
 					try {
 						results = Reports.reportExtGeneral(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Inbound",ext,Boolean.FALSE,null);
-					} catch (SQLException e) {
-						System.out.println("SQLState: " + e.getSQLState());
-					    System.out.println("Código de error: " + e.getErrorCode());
+					} catch (Exception e) {
 					    log.error("Error en la BBDD de la centralita: " + e.getMessage());
 					    request.setAttribute("error", "Error de acceso a la base de datos de la centralita: " + e.getMessage());
 						setControllerResponse("error").forward(request, response);
@@ -389,9 +349,7 @@ public class ReportsServletController extends HttpServlet {
 					String results[][];
 					try {
 						results = Reports.reportExtGeneral(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Inbound",ext,Boolean.TRUE,null);
-					} catch (SQLException e) {
-						System.out.println("SQLState: " + e.getSQLState());
-					    System.out.println("Código de error: " + e.getErrorCode());
+					} catch (Exception e) {
 					    log.error("Error en la BBDD de la centralita: " + e.getMessage());
 					    request.setAttribute("error", "Error de acceso a la base de datos de la centralita: " + e.getMessage());
 						setControllerResponse("error").forward(request, response);
@@ -405,9 +363,7 @@ public class ReportsServletController extends HttpServlet {
 					String results[][];
 					try {
 						results = Reports.reportExtUnanswered(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Inbound","NO ANSWER",null,Boolean.FALSE,null);
-					} catch (SQLException e) {
-						System.out.println("SQLState: " + e.getSQLState());
-					    System.out.println("Código de error: " + e.getErrorCode());
+					} catch (Exception e) {
 					    log.error("Error en la BBDD de la centralita: " + e.getMessage());
 					    request.setAttribute("error", "Error de acceso a la base de datos de la centralita: " + e.getMessage());
 						setControllerResponse("error").forward(request, response);
@@ -422,9 +378,7 @@ public class ReportsServletController extends HttpServlet {
 					String results[][];
 					try {
 						results = Reports.reportExtUnanswered(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Inbound","NO ANSWER",ext,Boolean.FALSE,null);
-					} catch (SQLException e) {
-						System.out.println("SQLState: " + e.getSQLState());
-					    System.out.println("Código de error: " + e.getErrorCode());
+					} catch (Exception e) {
 					    log.error("Error en la BBDD de la centralita: " + e.getMessage());
 					    request.setAttribute("error", "Error de acceso a la base de datos de la centralita: " + e.getMessage());
 						setControllerResponse("error").forward(request, response);
@@ -438,9 +392,7 @@ public class ReportsServletController extends HttpServlet {
 					String results[][];
 					try {
 						results = Reports.reportExtUnanswered(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Inbound","NO ANSWER",ext,Boolean.TRUE,null);
-					} catch (SQLException e) {
-						System.out.println("SQLState: " + e.getSQLState());
-					    System.out.println("Código de error: " + e.getErrorCode());
+					} catch (Exception e) {
 					    log.error("Error en la BBDD de la centralita: " + e.getMessage());
 					    request.setAttribute("error", "Error de acceso a la base de datos de la centralita: " + e.getMessage());
 						setControllerResponse("error").forward(request, response);
@@ -454,9 +406,7 @@ public class ReportsServletController extends HttpServlet {
 					String results[][];
 					try {
 						results = Reports.reportExtUnanswered(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Outbound","NO ANSWER",null,Boolean.FALSE,null);
-					} catch (SQLException e) {
-						System.out.println("SQLState: " + e.getSQLState());
-					    System.out.println("Código de error: " + e.getErrorCode());
+					} catch (Exception e) {
 					    log.error("Error en la BBDD de la centralita: " + e.getMessage());
 					    request.setAttribute("error", "Error de acceso a la base de datos de la centralita: " + e.getMessage());
 						setControllerResponse("error").forward(request, response);
@@ -472,9 +422,7 @@ public class ReportsServletController extends HttpServlet {
 					String results[][];
 					try {
 						results = Reports.reportExtUnanswered(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Outbound","NO ANSWER",null,Boolean.FALSE,srcList);
-					} catch (SQLException e) {
-						System.out.println("SQLState: " + e.getSQLState());
-					    System.out.println("Código de error: " + e.getErrorCode());
+					} catch (Exception e) {
 					    log.error("Error en la BBDD de la centralita: " + e.getMessage());
 					    request.setAttribute("error", "Error de acceso a la base de datos de la centralita: " + e.getMessage());
 						setControllerResponse("error").forward(request, response);
@@ -489,9 +437,7 @@ public class ReportsServletController extends HttpServlet {
 					String results[][];
 					try {
 						results = Reports.reportExtUnanswered(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Outbound","NO ANSWER",ext,Boolean.FALSE,null);
-					} catch (SQLException e) {
-						System.out.println("SQLState: " + e.getSQLState());
-					    System.out.println("Código de error: " + e.getErrorCode());
+					} catch (Exception e) {
 					    log.error("Error en la BBDD de la centralita: " + e.getMessage());
 					    request.setAttribute("error", "Error de acceso a la base de datos de la centralita: " + e.getMessage());
 						setControllerResponse("error").forward(request, response);
@@ -505,9 +451,7 @@ public class ReportsServletController extends HttpServlet {
 					String results[][];
 					try {
 						results = Reports.reportExtUnanswered(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Outbound","NO ANSWER",ext,Boolean.TRUE,null);
-					} catch (SQLException e) {
-						System.out.println("SQLState: " + e.getSQLState());
-					    System.out.println("Código de error: " + e.getErrorCode());
+					} catch (Exception e) {
 					    log.error("Error en la BBDD de la centralita: " + e.getMessage());
 					    request.setAttribute("error", "Error de acceso a la base de datos de la centralita: " + e.getMessage());
 						setControllerResponse("error").forward(request, response);

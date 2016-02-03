@@ -1,9 +1,7 @@
 package com.pbx_stats;
 
 import java.io.IOException;
-import javax.naming.Context;
-import javax.naming.InitialContext;
-import javax.naming.NamingException;
+
 import javax.servlet.RequestDispatcher;
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
@@ -12,13 +10,10 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
-import javax.sql.DataSource;
-import org.apache.log4j.BasicConfigurator;
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import com.pbx_stats.tools.DatabaseConnectionManager;
 import com.pbx_stats.tools.Utils;
-import java.sql.Connection;
-import java.sql.SQLException;
 
 /**
 * HttpServlet principal de la aplicación.
@@ -35,20 +30,17 @@ public class MainServletController extends HttpServlet {
 	
 	private static final long serialVersionUID = 1L;
 	//Log para generar entradas en el log mediante log4j.
-	private static final Logger log = LogManager.getLogger("Servlet: ");
+	private static final Logger log = LogManager.getLogger("MainServletController: ");
 	//String para almacenar la ruta de la carpeta donde se encuentran los JSP.
 	private String rutaJSP;
 	//Datasource para la conexión SQL
-	private DataSource ds;
-	//Conexión para la conexión SQL
-	private Connection con;
+	DatabaseConnectionManager localDatabase;
 	
     /**
      * @see HttpServlet#HttpServlet()
      */
     public MainServletController() {
         super();
-        // TODO Auto-generated constructor stub
     }
     /**
 	* Método init
@@ -59,19 +51,9 @@ public class MainServletController extends HttpServlet {
 	public void init(ServletConfig config) throws ServletException {
 		//Llamada al constructor de la clase padre
 		super.init(config);
-		//Configuración rápida del paquete log4j que permite generar logs. Sólo se hace una vez por aplicación
-		BasicConfigurator.configure();
-		log.setAdditivity(true);
 		//Recuperar el valor del directorio que contiene los archivos JSP
 		rutaJSP = config.getInitParameter("rutaJSP");
-		//Recuperación de los datos de conexión a mysql en la variable datasource ds
-		try {
-			InitialContext initContext = new InitialContext();
-			Context env = (Context) initContext.lookup("java:comp/env");
-			ds = (DataSource) env.lookup("jdbc/pbx-stats");
-		} catch (NamingException e) {
-			log.error("Error al configurar JNDI: " + e.getMessage());
-		}
+		localDatabase = InitConfig.getLocalDatabase(getServletContext());
 	}
 
 	/**
@@ -145,15 +127,6 @@ public class MainServletController extends HttpServlet {
 		else {
 			//Si la accion es igual a doLogin, el usuario ha introducido email y contraseña, se procede a validarlo contra la BBDD
 			if (action.equals("doLogin")) {
-				// Conectar a la BBDD
-				try {
-					con = ds.getConnection();
-				//Si se produce un error, se guarda el mensaje para mostrarlo en la pantalla de login y se redirige a login.jsp
-				} catch (SQLException e) {
-					log.error("Error de acceso a la base de datos de usuarios: " + e.getMessage());
-					request.setAttribute("error", "Error de acceso a la base de datos de usuarios: " + e.getMessage());
-					setControllerResponse("login").forward(request, response);
-				}
 				//Se recupera el valor de los parámetros email y contraseña
 				String email = request.getParameter("email");
 				String password = request.getParameter("password");
@@ -161,10 +134,10 @@ public class MainServletController extends HttpServlet {
 				//la clase Utils. Si se produce un error, se guarda el mensaje para mostrarlo en la pantalla de login y se redirige a login.jsp
 				int iduser=-1;
 				try {
-					iduser = Utils.checkLogging(con, email, password);
-				} catch (SQLException e1) {
-					log.error("Error de acceso a la base de datos de usuarios: " + e1.getMessage());
-					request.setAttribute("error", "Error de acceso a la base de datos de usuarios: " + e1.getMessage());
+					iduser = Utils.checkLogging(localDatabase, email, password);
+				} catch (Exception e) {
+					log.error("Error de acceso a la base de datos de usuarios: " + e.getMessage());
+					request.setAttribute("error", "Error de acceso a la base de datos de usuarios: " + e.getMessage());
 					setControllerResponse("login").forward(request, response);
 					return;
 				}
@@ -174,8 +147,8 @@ public class MainServletController extends HttpServlet {
 					//la clase Utils. Si se produce un error, se guarda el mensaje para mostrarlo en la pantalla de login y se redirige a login.jsp
 					Boolean userAdmin=false;
 					try {
-						userAdmin = Utils.checkIsAdmin(con, iduser);
-					} catch (SQLException e1) {
+						userAdmin = Utils.checkIsAdmin(localDatabase, iduser);
+					} catch (Exception e1) {
 						log.error("Error de acceso a la base de datos de usuarios: " + e1.getMessage());
 						request.setAttribute("error", "Error de acceso a la base de datos de usuarios: " + e1.getMessage());
 						setControllerResponse("login").forward(request, response);

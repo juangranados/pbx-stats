@@ -1,27 +1,21 @@
 package com.pbx_stats;
 
 import java.io.IOException;
-import java.sql.Connection;
-import java.sql.SQLException;
+
 import java.util.List;
 
-import javax.naming.Context;
-import javax.naming.InitialContext;
-import javax.naming.NamingException;
 import javax.servlet.RequestDispatcher;
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import javax.sql.DataSource;
-
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
-
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import com.pbx_stats.beans.Pbx;
 import com.pbx_stats.beans.Pricing;
 import com.pbx_stats.beans.User;
+import com.pbx_stats.tools.DatabaseConnectionManager;
 import com.pbx_stats.tools.Utils;
 
 /**
@@ -29,10 +23,9 @@ import com.pbx_stats.tools.Utils;
  */
 public class PbxsServletController extends HttpServlet {
 	private static final long serialVersionUID = 1L;
-	private static final Logger log = LogManager.getLogger("Servlet: ");
+	private static final Logger log = LogManager.getLogger("PbxsServletController: ");
 	private String rutaJSP;
-	private DataSource ds;
-	private Connection con;
+	DatabaseConnectionManager localDatabase;
 	Users userList;
 	Pbxs pbxsList;
 
@@ -48,25 +41,7 @@ public class PbxsServletController extends HttpServlet {
 	public void init(ServletConfig config) throws ServletException {
 		super.init(config);
 		rutaJSP = config.getInitParameter("rutaJSP");
-		try {
-			InitialContext initContext = new InitialContext();
-			Context env = (Context) initContext.lookup("java:comp/env");
-			ds = (DataSource) env.lookup("jdbc/pbx-stats");
-		} catch (NamingException e) {
-			log.error("Error al configurar JNDI: " + e.getMessage());
-		}
-		try {
-			con = ds.getConnection();
-		} catch (SQLException e) {
-			log.error("Error creando la conexión: " + e.getMessage());
-		}
-		userList = new Users(con);
-		try {
-			pbxsList = new Pbxs(con);
-		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+		localDatabase = InitConfig.getLocalDatabase(getServletContext());
 	}
 
 	/**
@@ -76,6 +51,14 @@ public class PbxsServletController extends HttpServlet {
 	protected void doGet(HttpServletRequest request, HttpServletResponse response)
 			throws ServletException, IOException {
 		if (Utils.isLoggedIn(request) && Utils.isAdmin(request)) {
+			try {
+				userList = new Users(localDatabase);
+				pbxsList = new Pbxs(localDatabase);
+			} catch (Exception e) {
+				log.error(
+						"Se ha producido un error al inicializar los objetos que contienen la lista de usuarios y centralitas: "
+								+ e.getMessage());
+			}
 			String action = request.getParameter("action");
 			if (action != null) {
 				if (action.equals("pbxs")) {
@@ -84,13 +67,19 @@ public class PbxsServletController extends HttpServlet {
 				} else if (action.equals("editPbx")) {
 					Pbx pbx = pbxsList.getPbxById(Integer.parseInt(request.getParameter("idPbx")));
 					request.setAttribute("editPbx", pbx);
-					List<User> usersByPbxList = userList.getUsersByPbx(con,
-							Integer.parseInt(request.getParameter("idPbx")), Boolean.FALSE);
-					request.setAttribute("usersByPbxList", usersByPbxList);
-					List<User> reverseUsersByPbxList = userList.getUsersByPbx(con,
-							Integer.parseInt(request.getParameter("idPbx")), Boolean.TRUE);
-					request.setAttribute("reverseUsersByPbxList", reverseUsersByPbxList);
-					setControllerResponse("editpbx").forward(request, response);
+					try {
+						List<User> usersByPbxList = userList.getUsersByPbx(localDatabase,
+								Integer.parseInt(request.getParameter("idPbx")), Boolean.FALSE);
+						request.setAttribute("usersByPbxList", usersByPbxList);
+						List<User> reverseUsersByPbxList = userList.getUsersByPbx(localDatabase,
+								Integer.parseInt(request.getParameter("idPbx")), Boolean.TRUE);
+						request.setAttribute("reverseUsersByPbxList", reverseUsersByPbxList);
+						setControllerResponse("editpbx").forward(request, response);
+					} catch (Exception ex) {
+						request.setAttribute("error", "Error de acceso a la base de datos local: " + ex.getMessage());
+						setControllerResponse("error").forward(request, response);
+						return;
+					}
 				} else if (action.equals("confirmEditPbx")) {
 					int idPbx = Integer.parseInt(request.getParameter("idPbx"));
 					String name = request.getParameter("editedName");
@@ -107,19 +96,19 @@ public class PbxsServletController extends HttpServlet {
 					String billsec = request.getParameter("editedBillsec");
 					String disposition = request.getParameter("editedDisposition");
 					String calltype = request.getParameter("editedCalltype");
-					if (password.isEmpty())
+					if (password.isEmpty()) {
 						password = "none";
-					if (pbxsList.editPbx(con, idPbx, name, ip, port, username, password, database, cdrname, datetime,
-							src, dst, duration, billsec, disposition, calltype)) {
+					}
+					try {
+						pbxsList.editPbx(localDatabase, idPbx, name, ip, port, username, password, database, cdrname,
+								datetime, src, dst, duration, billsec, disposition, calltype);
 						String[] users = request.getParameterValues("users[]");
-						if (pbxsList.editPbxUsers(con, idPbx, users)) {
-							request.setAttribute("pbxsMessage", "Centralita con ID: "
-									+ Integer.parseInt(request.getParameter("idPbx")) + " modificada");
-						} else {
-							request.setAttribute("pbxsMessage", "Error al modificar centralita");
-						}
-					} else {
-						request.setAttribute("pbxsMessage", "Error al modificar centralita");
+
+						pbxsList.editPbxUsers(localDatabase, idPbx, users);
+						request.setAttribute("pbxsMessage", "Centralita con ID: "
+								+ Integer.parseInt(request.getParameter("idPbx")) + " modificada");
+					} catch (Exception ex) {
+						request.setAttribute("pbxsMessage", "Error al modificar centralita: " + ex.getMessage());
 					}
 					request.setAttribute("pbxsList", pbxsList.pbxsList);
 					setControllerResponse("pbxs").forward(request, response);
@@ -145,17 +134,23 @@ public class PbxsServletController extends HttpServlet {
 					String billsec = request.getParameter("newBillsec");
 					String disposition = request.getParameter("newDisposition");
 					String calltype = request.getParameter("newCalltype");
-					int idPbx = pbxsList.newPbx(con, name, ip, port, username, password, db, cdrname, datetime, src,
-							dst, duration, billsec, disposition, calltype);
-					if (idPbx != -1) {
-						String[] users = request.getParameterValues("users[]");
-						if (pbxsList.editPbxUsers(con, idPbx, users)) {
-							request.setAttribute("pbxsMessage", "Centralita con ID: " + idPbx + " creada");
+					try {
+						int idPbx = pbxsList.newPbx(localDatabase, name, ip, port, username, password, db, cdrname,
+								datetime, src, dst, duration, billsec, disposition, calltype);
+						if (idPbx != -1) {
+							String[] users = request.getParameterValues("users[]");
+							if (pbxsList.editPbxUsers(localDatabase, idPbx, users)) {
+								request.setAttribute("pbxsMessage", "Centralita con ID: " + idPbx + " creada");
+							} else {
+								request.getSession().setAttribute("pbxsMessage", "Error al crear centralita");
+							}
 						} else {
 							request.getSession().setAttribute("pbxsMessage", "Error al crear centralita");
 						}
-					} else {
-						request.getSession().setAttribute("pbxsMessage", "Error al crear centralita");
+					} catch (Exception ex) {
+						request.setAttribute("error", "Error de acceso a la base de datos local: " + ex.getMessage());
+						setControllerResponse("error").forward(request, response);
+						return;
 					}
 					request.setAttribute("pbxsList", pbxsList.pbxsList);
 					setControllerResponse("pbxs").forward(request, response);
@@ -164,42 +159,62 @@ public class PbxsServletController extends HttpServlet {
 					request.setAttribute("pbxsList", pbxsList.pbxsList);
 					setControllerResponse("pbxs").forward(request, response);
 				} else if (action.equals("deletePbx")) {
-					if (pbxsList.deletePbx(con, Integer.parseInt(request.getParameter("idPbx")))) {
+					try {
+						pbxsList.deletePbx(localDatabase, Integer.parseInt(request.getParameter("idPbx")));
 						request.setAttribute("pbxsMessage", "Centralita con ID "
 								+ Integer.parseInt(request.getParameter("idPbx")) + " borrada correctamente");
-					} else {
-						request.setAttribute("pbxsMessage", "Error al eliminar centralita");
+						request.setAttribute("pbxsList", pbxsList.pbxsList);
+					} catch (Exception e) {
+						request.setAttribute("pbxsMessage", "Error al eliminar centralita: " + e.getMessage());
 					}
-					request.setAttribute("pbxsList", pbxsList.pbxsList);
 					setControllerResponse("pbxs").forward(request, response);
 				} else if (action.equals("editPricing")) {
-					Pricing pricing = new Pricing(con, Integer.parseInt(request.getParameter("idPbx")));
-					request.setAttribute("pricing", pricing);
-					setControllerResponse("editpricing").forward(request, response);
-				} else if (action.equals("confirmEditPricing")) {
-					if (Pricing.updatePricing(con,Integer.parseInt(request.getParameter("idPbx")) ,Integer.parseInt(request.getParameter("fijo")),
-							Integer.parseInt(request.getParameter("movil")),Integer.parseInt(request.getParameter("adicional")),
-							Integer.parseInt(request.getParameter("compartido")),Integer.parseInt( request.getParameter("internacional")),
-							Integer.parseInt(request.getParameter("efijo")),Integer.parseInt(request.getParameter("emovil")),
-							Integer.parseInt(request.getParameter("eadicional")), Integer.parseInt(request.getParameter("ecompartido")),
-							Integer.parseInt(request.getParameter("einternacional")),Integer.parseInt(request.getParameter("desconocido")),
-							Integer.parseInt(request.getParameter("edesconocido")))){
-						request.setAttribute("pbxsMessage", "Se ha modificado la facturación para la centralita con ID "
-								+ Integer.parseInt(request.getParameter("idPbx")) + " correctamente");
-					} else {
-						request.setAttribute("pbxsMessage", "Error al modificar la facturación de la centralita");
+					try {
+						Pricing pricing = new Pricing(localDatabase, Integer.parseInt(request.getParameter("idPbx")));
+						request.setAttribute("pricing", pricing);
+						setControllerResponse("editpricing").forward(request, response);
+					} catch (Exception ex) {
+						request.setAttribute("error", "Error de acceso a la base de datos local: " + ex.getMessage());
+						setControllerResponse("error").forward(request, response);
+						return;
 					}
+				} else if (action.equals("confirmEditPricing")) {
+					try {
+						if (Pricing.updatePricing(localDatabase, Integer.parseInt(request.getParameter("idPbx")),
+								Integer.parseInt(request.getParameter("fijo")),
+								Integer.parseInt(request.getParameter("movil")),
+								Integer.parseInt(request.getParameter("adicional")),
+								Integer.parseInt(request.getParameter("compartido")),
+								Integer.parseInt(request.getParameter("internacional")),
+								Integer.parseInt(request.getParameter("efijo")),
+								Integer.parseInt(request.getParameter("emovil")),
+								Integer.parseInt(request.getParameter("eadicional")),
+								Integer.parseInt(request.getParameter("ecompartido")),
+								Integer.parseInt(request.getParameter("einternacional")),
+								Integer.parseInt(request.getParameter("desconocido")),
+								Integer.parseInt(request.getParameter("edesconocido")))) {
+							request.setAttribute("pbxsMessage",
+									"Se ha modificado la facturación para la centralita con ID "
+											+ Integer.parseInt(request.getParameter("idPbx")) + " correctamente");
+						} else {
+							request.setAttribute("pbxsMessage", "Error al modificar la facturación de la centralita");
+						}
+						request.setAttribute("pbxsList", pbxsList.pbxsList);
+						setControllerResponse("pbxs").forward(request, response);
+					} catch (Exception ex) {
+						request.setAttribute("error", "Error de acceso a la base de datos local: " + ex.getMessage());
+						setControllerResponse("error").forward(request, response);
+						return;
+					}
+				} else if (action.equals("cancelEditPricing")) {
+					request.setAttribute("pbxsMessage",
+							"Se ha cancelado la modificación de la facturación de la centralita");
 					request.setAttribute("pbxsList", pbxsList.pbxsList);
 					setControllerResponse("pbxs").forward(request, response);
 				}
-				else if (action.equals("cancelEditPricing")) {
-					request.setAttribute("pbxsMessage", "Se ha cancelado la modificación de la facturación de la centralita");
-					request.setAttribute("pbxsList", pbxsList.pbxsList);
-					setControllerResponse("pbxs").forward(request, response);
-				}
-			} 
-		} else {
-			getServletContext().getRequestDispatcher("/main").forward(request, response);
+			} else {
+				getServletContext().getRequestDispatcher("/main").forward(request, response);
+			}
 		}
 	}
 
