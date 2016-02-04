@@ -33,9 +33,11 @@ public class InitConfig implements ServletContextListener {
     public void contextDestroyed(ServletContextEvent arg0)  { 
          // TODO Auto-generated method stub
     }
-
-	/**
-     * @see ServletContextListener#contextInitialized(ServletContextEvent)
+    /**
+     * Inicialización del contexto
+     * Registro del driver MySQL
+     * Creación del objeto DatabaseConnectionManager que contiene un Datasouce 
+     * para que los Servlets y clases soliciten conexiones SQL
      */
     public void contextInitialized(ServletContextEvent event)  { 
     	try {
@@ -53,6 +55,11 @@ public class InitConfig implements ServletContextListener {
 			log.error("Error al recuperar datos de conexión MySQL: " + e.getMessage());
 		}
     }
+    /**
+     * Devuelve el objeto DatabaseConnectionManager
+     * @param servletContext Contexto del servidor, normalmente obtenido mediante getServletContext()
+     * @return DatabaseConnectionManager
+     */
     public static DatabaseConnectionManager getLocalDatabase(ServletContext servletContext) {
         return (DatabaseConnectionManager) servletContext.getAttribute(ATTRIBUTE_NAME);
     }
