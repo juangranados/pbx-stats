@@ -25,6 +25,7 @@ public class ReportsServletController extends HttpServlet {
 	private static final long serialVersionUID = 1L;
 	private static final Logger log = LogManager.getLogger("ReportsServletController: ");
 	private String rutaJSP;
+	private String results[][]=null;
 	DatabaseConnectionManager localDatabase;
 	Pbxs pbxsList;
     /**
@@ -67,6 +68,15 @@ public class ReportsServletController extends HttpServlet {
 			String action = request.getParameter("action");
 			//Si se ha especificado un valor para action
 			if (action != null) {
+				//Si se quiere generar un PDF a partir de un resultado
+				if (action.equals("generatePDF")){
+					//PDFGenerator.createReportPDF(results, request.getParameter("reporte"), null);
+					//return;
+					request.setAttribute("results", results);
+					request.setAttribute("reporte",request.getParameter("reporte"));
+					getServletContext().getRequestDispatcher("/PdfServletController").forward(request, response);
+				}
+				results=null;
 				//Se recupera la sesión de Tomcat para consultar id de usuario y si éste es administrador
 				HttpSession session = request.getSession(true);
 				//Se recupera el id del usuario
@@ -194,7 +204,7 @@ public class ReportsServletController extends HttpServlet {
 				
 				//Una vez que se ha seleccionado el periodo, se genera el resultado y se imprime en la vista correspondiente
 				else if (action.equals("extGeneralPricingResult")){
-					String results[][];
+					
 					try {
 						Pricing pricing=new Pricing(localDatabase,idPbx);
 						results = Reports.reportGeneralPricing(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),pricing,null,Boolean.FALSE,null);
@@ -211,7 +221,7 @@ public class ReportsServletController extends HttpServlet {
 				}
 				else if (action.equals("extGeneralPricingResultFiltered")){
 					String[] srcList = request.getParameterValues("sourceList");
-					String results[][];
+					
 					try {
 						Pricing pricing=new Pricing(localDatabase,idPbx);
 						results = Reports.reportGeneralPricing(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),pricing,null,Boolean.FALSE,srcList);
@@ -227,7 +237,7 @@ public class ReportsServletController extends HttpServlet {
 					setControllerResponse("resultextgeneral").forward(request, response);
 				}
 				else if (action.equals("extPricingDetail")){
-					String results[][];
+					
 					try {
 						Pricing pricing=new Pricing(localDatabase,idPbx);
 						results = Reports.reportGeneralPricing(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),pricing,ext,Boolean.FALSE,null);
@@ -243,7 +253,7 @@ public class ReportsServletController extends HttpServlet {
 					}
 				else if (action.equals("extPricingBrief")){
 					
-					String results[][];
+					
 					try {
 						Pricing pricing=new Pricing(localDatabase,idPbx);
 						results = Reports.reportGeneralPricing(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),pricing,ext,Boolean.TRUE,null);
@@ -258,7 +268,7 @@ public class ReportsServletController extends HttpServlet {
 					setControllerResponse("resultext").forward(request, response);
 				}
 				else if (action.equals("extGeneralMadeResult")){
-					String results[][];
+					
 					try {
 						results = Reports.reportExtGeneral(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Outbound",null,Boolean.FALSE,null);
 					} catch (Exception e) {
@@ -274,7 +284,7 @@ public class ReportsServletController extends HttpServlet {
 				}
 				else if (action.equals("extGeneralMadeResultFiltered")){
 					String[] srcList = request.getParameterValues("sourceList");
-					String results[][];
+					
 					try {
 						results = Reports.reportExtGeneral(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Outbound",null,Boolean.FALSE,srcList);
 					} catch (Exception e) {
@@ -289,7 +299,7 @@ public class ReportsServletController extends HttpServlet {
 					setControllerResponse("resultextgeneral").forward(request, response);
 				}
 				else if (action.equals("extMadeDetail")){
-					String results[][];
+					
 					try {
 						results = Reports.reportExtGeneral(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Outbound",ext,Boolean.FALSE,null);
 					} catch (Exception e) {
@@ -303,7 +313,7 @@ public class ReportsServletController extends HttpServlet {
 					setControllerResponse("resultext").forward(request, response);
 				}
 				else if (action.equals("extMadeBrief")){
-					String results[][];
+					
 					try {
 						results = Reports.reportExtGeneral(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Outbound",ext,Boolean.TRUE,null);
 					} catch (Exception e) {
@@ -317,7 +327,7 @@ public class ReportsServletController extends HttpServlet {
 					setControllerResponse("resultext").forward(request, response);
 				}
 				else if (action.equals("extGeneralReceivedResult")){				
-					String results[][];
+					
 					try {
 						results = Reports.reportExtGeneral(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Inbound",null,Boolean.FALSE,null);
 					} catch (Exception e) {
@@ -332,7 +342,7 @@ public class ReportsServletController extends HttpServlet {
 					setControllerResponse("resultextgeneral").forward(request, response);
 				}
 				else if (action.equals("extReceivedDetail")){
-					String results[][];
+					
 					try {
 						results = Reports.reportExtGeneral(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Inbound",ext,Boolean.FALSE,null);
 					} catch (Exception e) {
@@ -346,7 +356,7 @@ public class ReportsServletController extends HttpServlet {
 					setControllerResponse("resultext").forward(request, response);
 				}
 				else if (action.equals("extReceivedBrief")){
-					String results[][];
+					
 					try {
 						results = Reports.reportExtGeneral(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Inbound",ext,Boolean.TRUE,null);
 					} catch (Exception e) {
@@ -360,7 +370,7 @@ public class ReportsServletController extends HttpServlet {
 					setControllerResponse("resultext").forward(request, response);
 				}
 				else if (action.equals("extGeneralUnansweredReceivedResult")){
-					String results[][];
+					
 					try {
 						results = Reports.reportExtUnanswered(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Inbound","NO ANSWER",null,Boolean.FALSE,null);
 					} catch (Exception e) {
@@ -375,7 +385,7 @@ public class ReportsServletController extends HttpServlet {
 					setControllerResponse("resultextgeneral").forward(request, response);
 				}
 				else if (action.equals("extUnansweredReceivedDetail")){
-					String results[][];
+					
 					try {
 						results = Reports.reportExtUnanswered(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Inbound","NO ANSWER",ext,Boolean.FALSE,null);
 					} catch (Exception e) {
@@ -389,7 +399,7 @@ public class ReportsServletController extends HttpServlet {
 					setControllerResponse("resultext").forward(request, response);
 				}
 				else if (action.equals("extUnansweredReceivedBrief")){
-					String results[][];
+					
 					try {
 						results = Reports.reportExtUnanswered(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Inbound","NO ANSWER",ext,Boolean.TRUE,null);
 					} catch (Exception e) {
@@ -403,7 +413,7 @@ public class ReportsServletController extends HttpServlet {
 					setControllerResponse("resultext").forward(request, response);
 				}
 				else if (action.equals("extGeneralUnansweredMadeResult")){
-					String results[][];
+					
 					try {
 						results = Reports.reportExtUnanswered(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Outbound","NO ANSWER",null,Boolean.FALSE,null);
 					} catch (Exception e) {
@@ -419,7 +429,7 @@ public class ReportsServletController extends HttpServlet {
 				}
 				else if (action.equals("extGeneralUnansweredMadeResultFiltered")){
 					String[] srcList = request.getParameterValues("sourceList");
-					String results[][];
+					
 					try {
 						results = Reports.reportExtUnanswered(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Outbound","NO ANSWER",null,Boolean.FALSE,srcList);
 					} catch (Exception e) {
@@ -434,7 +444,7 @@ public class ReportsServletController extends HttpServlet {
 					setControllerResponse("resultextgeneral").forward(request, response);
 				}
 				else if (action.equals("extUnansweredMadeDetail")){
-					String results[][];
+					
 					try {
 						results = Reports.reportExtUnanswered(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Outbound","NO ANSWER",ext,Boolean.FALSE,null);
 					} catch (Exception e) {
@@ -448,7 +458,7 @@ public class ReportsServletController extends HttpServlet {
 					setControllerResponse("resultext").forward(request, response);
 				}
 				else if (action.equals("extUnansweredMadeBrief")){
-					String results[][];
+					
 					try {
 						results = Reports.reportExtUnanswered(fechaInicio,fechaFin,horaInicio,horaFin,pbxsList.getPbxById(idPbx),"Outbound","NO ANSWER",ext,Boolean.TRUE,null);
 					} catch (Exception e) {

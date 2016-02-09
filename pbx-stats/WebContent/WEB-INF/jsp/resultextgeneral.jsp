@@ -57,6 +57,7 @@
 	    </tbody>
 	  </table>
 	  </c:if>
+	  <a href="/${initParam.appContext}/reports?action=generatePDF&reporte=${reportName}" class="btn btn-info btn-xs" role="button">Generar PDF</a>
 	</div>
 
 </body>

@@ -77,4 +77,14 @@
   <listener>
     <listener-class>com.pbx_stats.InitConfig</listener-class>
   </listener>
+  <servlet>
+    <description></description>
+    <display-name>PdfServletController</display-name>
+    <servlet-name>PdfServletController</servlet-name>
+    <servlet-class>com.pbx_stats.PdfServletController</servlet-class>
+  </servlet>
+  <servlet-mapping>
+    <servlet-name>PdfServletController</servlet-name>
+    <url-pattern>/PdfServletController</url-pattern>
+  </servlet-mapping>
 </web-app>
