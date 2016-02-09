@@ -21,6 +21,7 @@
 	    	<p>No hay resultados para la consulta especificada en el rango de fechas.</p>
 	  </c:if>
 	  <c:if test="${fn:length(results) gt 1}">
+	  <a href="/${initParam.appContext}/reports?action=generatePDF&reporte=${reportName}" class="btn btn-info btn-xs" role="button">Exportar a PDF</a>
 	  <table class="table table-hover">
 	    <thead>
 	      <tr>
@@ -57,7 +58,6 @@
 	    </tbody>
 	  </table>
 	  </c:if>
-	  <a href="/${initParam.appContext}/reports?action=generatePDF&reporte=${reportName}" class="btn btn-info btn-xs" role="button">Generar PDF</a>
 	</div>
 
 </body>

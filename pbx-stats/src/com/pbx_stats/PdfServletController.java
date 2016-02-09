@@ -1,6 +1,9 @@
 package com.pbx_stats;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
+
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -35,13 +38,14 @@ public class PdfServletController extends HttpServlet {
 	 */
 	protected void doGet(HttpServletRequest request, HttpServletResponse response)
 			throws ServletException, IOException {
-		response.setContentType("application/pdf");
+		//response.setContentType("application/pdf");
 		String title = (String) request.getAttribute("reporte");
 		String reportTable[][] = (String[][]) request.getAttribute("results");
 		Document document = new Document(PageSize.A4, 10, 10, 10, 10);
 		try {
-			PdfWriter.getInstance(document, response.getOutputStream());
-
+			//PdfWriter.getInstance(document, response.getOutputStream());
+			ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            PdfWriter.getInstance(document, baos);
 			document.open();
 
 			Font fontbold = FontFactory.getFont("Arial", 20, Font.BOLD);
@@ -65,6 +69,19 @@ public class PdfServletController extends HttpServlet {
 			document.add(table);
 
 			document.close();
+			// setting some response headers
+            response.setHeader("Expires", "0");
+            response.setHeader("Cache-Control","must-revalidate, post-check=0, pre-check=0");
+            response.setHeader("Pragma", "public");
+            // setting the content type
+            response.setContentType("application/pdf");
+            // the contentlength
+            response.setContentLength(baos.size());
+            // write ByteArrayOutputStream to the ServletOutputStream
+            OutputStream os = response.getOutputStream();
+            baos.writeTo(os);
+            os.flush();
+            os.close();
 		} catch (Exception e) {
 
 		}
