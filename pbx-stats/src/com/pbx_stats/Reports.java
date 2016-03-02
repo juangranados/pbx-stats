@@ -277,6 +277,7 @@ public class Reports {
 					result[f][c] = new String(pricingResult[1]);
 					result[f][c + 1] = new String(pricingResult[2]);
 					total += Double.parseDouble(result[f][c + 1]);
+					result[f][c + 1] += "€";
 				}
 				f++;
 			}
@@ -286,7 +287,7 @@ public class Reports {
 				}
 				result[f][columnsNumber + 1] = "Total";
 				total = Math.round(total * 100.0) / 100.0;
-				result[f][columnsNumber + 2] = Double.toString(total);
+				result[f][columnsNumber + 2] = Double.toString(total)+"€";
 			}
 			log.info("Se han procesado " + rowsNumber + " filas en la consulta.");
 			log.info("Ha finalizado la ejecucion de la consulta. Se devuelve el resultado al Servlet.");
